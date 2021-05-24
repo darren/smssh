@@ -1,0 +1,5 @@
+*.log
+smssh
+*.dat
+id_rsa*
+
