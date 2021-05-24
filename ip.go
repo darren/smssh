@@ -199,7 +199,7 @@ func readString(buffer []byte, offset int64) (string, int64) {
 	buf := make([]byte, i)
 	copy(buf, buffer[offset:offset+i])
 
-	return string(buf[0:i]), 0
+	return string(buf[0:i]), i
 }
 
 var ipRegex = regexp.MustCompile(`([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9*]{1,3})`)
