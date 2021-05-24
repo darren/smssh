@@ -2,4 +2,5 @@
 smssh
 *.dat
 id_rsa*
+*.xz
 
