@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 var (
@@ -117,13 +117,13 @@ func run(ctx context.Context) (err error) {
 	}()
 
 	fd := int(os.Stdin.Fd())
-	state, err := terminal.MakeRaw(fd)
+	state, err := term.MakeRaw(fd)
 	if err != nil {
 		return fmt.Errorf("terminal make raw: %s", err)
 	}
-	defer terminal.Restore(fd, state)
+	defer term.Restore(fd, state)
 
-	w, h, err := terminal.GetSize(fd)
+	w, h, err := term.GetSize(fd)
 	if err != nil {
 		return fmt.Errorf("terminal get size: %s", err)
 	}
@@ -134,11 +134,11 @@ func run(ctx context.Context) (err error) {
 		ssh.TTY_OP_OSPEED: 14400,
 	}
 
-	term := os.Getenv("TERM")
-	if term == "" {
-		term = "xterm-256color"
+	eterm := os.Getenv("TERM")
+	if eterm == "" {
+		eterm = "xterm-256color"
 	}
-	if err := session.RequestPty(term, h, w, modes); err != nil {
+	if err := session.RequestPty(eterm, h, w, modes); err != nil {
 		return fmt.Errorf("session xterm: %s", err)
 	}
 
@@ -152,7 +152,7 @@ func run(ctx context.Context) (err error) {
 		for {
 			<-sig
 
-			w, h, err := terminal.GetSize(fd)
+			w, h, err := term.GetSize(fd)
 			if err != nil {
 				log.Printf("Get window size failed %v", err)
 				continue
