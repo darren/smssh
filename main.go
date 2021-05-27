@@ -22,6 +22,7 @@ var (
 	identity = flag.String("i", "", "identity file")
 	logfile  = flag.String("d", "", "debug log")
 	cloak    = flag.String("c", "", "cloak mode hide smth id")
+	port     = flag.Int("p", 22, "port")
 )
 
 func main() {
@@ -98,7 +99,7 @@ func run(ctx context.Context) (err error) {
 	if host == "" {
 		host = "bbs.newsmth.net"
 	}
-	hostport := fmt.Sprintf("%s:22", host)
+	hostport := fmt.Sprintf("%s:%d", host, *port)
 	conn, err := ssh.Dial("tcp", hostport, config)
 	if err != nil {
 		return fmt.Errorf("cannot connect %v: %v", hostport, err)
