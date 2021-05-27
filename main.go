@@ -10,6 +10,8 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,9 +20,9 @@ import (
 )
 
 var (
-	user     = flag.String("l", "", "login_name")
-	identity = flag.String("i", "", "identity file")
-	logfile  = flag.String("d", "", "debug log")
+	user     = flag.String("l", "", "login name")
+	identity = flag.String("i", "", "identity file ie: ~/.ssh/id_rsa")
+	logfile  = flag.String("d", "", "enable debug and output logs to file")
 	cloak    = flag.String("c", "", "cloak mode hide smth id")
 	port     = flag.Int("p", 22, "port")
 )
@@ -64,6 +66,27 @@ func main() {
 func run(ctx context.Context) (err error) {
 	var methods []ssh.AuthMethod
 
+	host := flag.Arg(0)
+	if host == "" {
+		host = "bbs.newsmth.net"
+	} else {
+		if i := strings.Index(host, "@"); i > 0 {
+			*user = host[:i]
+			if len(host[i:]) > 1 {
+				host = host[i+1:]
+			}
+		}
+
+		if i := strings.Index(host, ":"); i > 0 {
+			if len(host[i:]) > 1 {
+				*port, _ = strconv.Atoi(host[i+1:])
+			}
+			host = host[:i]
+		}
+	}
+
+	hostport := fmt.Sprintf("%s:%d", host, *port)
+
 	if *user == "" {
 		*user, err = prompt("Username: ")
 		if err != nil {
@@ -95,11 +118,6 @@ func run(ctx context.Context) (err error) {
 
 	config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
-	host := flag.Arg(0)
-	if host == "" {
-		host = "bbs.newsmth.net"
-	}
-	hostport := fmt.Sprintf("%s:%d", host, *port)
 	conn, err := ssh.Dial("tcp", hostport, config)
 	if err != nil {
 		return fmt.Errorf("cannot connect %v: %v", hostport, err)
