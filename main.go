@@ -49,6 +49,9 @@ func main() {
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 	ctx, cancel := context.WithCancel(context.Background())
 
+	fd := int(os.Stdin.Fd())
+	termState, err := term.GetState(fd)
+
 	go func() {
 		if err := run(ctx); err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -61,6 +64,11 @@ func main() {
 		cancel()
 	case <-ctx.Done():
 	}
+
+	if err == nil {
+		term.Restore(fd, termState)
+	}
+	fmt.Println()
 }
 
 func run(ctx context.Context) (err error) {
