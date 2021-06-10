@@ -9,3 +9,4 @@
 3. 防止发呆
 4. 仅支持utf-8终端
 5. IP位置显示(下载qqwry.dat 文件放到 ~/.config/smssh/qqwry.dat)
+6. 断线重连

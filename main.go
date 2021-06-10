@@ -20,11 +20,12 @@ import (
 )
 
 var (
-	user     = flag.String("l", "", "login name")
-	identity = flag.String("i", "", "identity file ie: ~/.ssh/id_rsa")
-	logfile  = flag.String("d", "", "enable debug and output logs to file")
-	cloak    = flag.String("c", "", "cloak mode hide smth id")
-	port     = flag.Int("p", 22, "port")
+	user      = flag.String("l", "", "login name")
+	identity  = flag.String("i", "", "identity file ie: ~/.ssh/id_rsa")
+	logfile   = flag.String("d", "", "enable debug and output logs to file")
+	cloak     = flag.String("c", "", "cloak mode hide smth id")
+	port      = flag.Int("p", 22, "port")
+	reconnect = flag.Bool("r", false, "auto reconnect after close")
 )
 
 func main() {
@@ -51,12 +52,40 @@ func main() {
 
 	fd := int(os.Stdin.Fd())
 	termState, err := term.GetState(fd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
+
+	auth, err := getAuth()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
+
+	start := time.Now()
+	retries := 0
 
 	go func() {
-		if err := run(ctx); err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
+		defer cancel()
+		delay := 5 * time.Second
+		for {
+			retries++
+			err := run(ctx, auth)
+
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				if !*reconnect {
+					return
+				}
+
+				delay *= 2
+				fmt.Fprintf(os.Stderr, "Reconnect in %v\n", delay)
+				time.Sleep(delay)
+			} else {
+				return
+			}
 		}
-		cancel()
 	}()
 
 	select {
@@ -68,10 +97,23 @@ func main() {
 	if err == nil {
 		term.Restore(fd, termState)
 	}
-	fmt.Println()
+
+	if retries > 0 {
+		fmt.Printf("Bye! Last connect time: %v, connects: %d\n", time.Since(start), retries)
+	}
 }
 
-func run(ctx context.Context) (err error) {
+type Auth struct {
+	user    string
+	host    string
+	port    int
+	methods []ssh.AuthMethod
+}
+
+func getAuth() (*Auth, error) {
+	var auth Auth
+	var err error
+
 	var methods []ssh.AuthMethod
 
 	host := flag.Arg(0)
@@ -91,40 +133,51 @@ func run(ctx context.Context) (err error) {
 			}
 			host = host[:i]
 		}
-	}
 
-	hostport := fmt.Sprintf("%s:%d", host, *port)
+	}
+	auth.host = host
+	auth.port = *port
 
 	if *user == "" {
 		*user, err = prompt("Username: ")
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
+	auth.user = *user
 
 	if *identity == "" {
 		var password string
 		password, err = promptPassword("Password: ")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		methods = append(methods, ssh.Password(password))
 	} else {
 		signer, err := signerFromFile(*identity)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		methods = append(methods, ssh.PublicKeys(signer))
 	}
 
+	auth.methods = methods
+
+	return &auth, nil
+}
+
+func run(ctx context.Context, auth *Auth) (err error) {
+
 	config := &ssh.ClientConfig{
-		User:            *user,
-		Auth:            methods,
+		User:            auth.user,
+		Auth:            auth.methods,
 		Timeout:         5 * time.Second,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
 	config.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+
+	hostport := fmt.Sprintf("%s:%d", auth.host, auth.port)
 
 	conn, err := ssh.Dial("tcp", hostport, config)
 	if err != nil {
@@ -200,7 +253,7 @@ func run(ctx context.Context) (err error) {
 	if err := session.Wait(); err != nil {
 		if e, ok := err.(*ssh.ExitError); ok {
 			switch e.ExitStatus() {
-			case 130:
+			case 1, 130:
 				return nil
 			}
 		}
