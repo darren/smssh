@@ -21,9 +21,11 @@ func DialProxy(hostport string, config *ssh.ClientConfig, p *url.URL) (*ssh.Clie
 	)
 
 	if p.User != nil {
-		username := p.User.Username()
-		password, _ := p.User.Password()
-		auth = &proxy.Auth{User: username, Password: password}
+		auth = new(proxy.Auth)
+		auth.User = p.User.Username()
+		if p, ok := p.User.Password(); ok {
+			auth.Password = p
+		}
 	}
 
 	switch p.Scheme {
