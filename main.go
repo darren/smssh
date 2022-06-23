@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -25,6 +26,7 @@ var (
 	logfile   = flag.String("d", "", "enable debug and output logs to file")
 	cloak     = flag.String("c", "", "cloak mode hide smth id")
 	port      = flag.Int("p", 22, "port")
+	forward   = flag.String("x", "", "proxy to use: socks5://127.0.0.1:1080")
 	reconnect = flag.Bool("r", false, "auto reconnect after close")
 )
 
@@ -167,6 +169,7 @@ func getAuth() (*Auth, error) {
 }
 
 func run(ctx context.Context, auth *Auth) (err error) {
+	idleTimeout := 10 * time.Minute
 
 	config := &ssh.ClientConfig{
 		User:            auth.user,
@@ -179,7 +182,22 @@ func run(ctx context.Context, auth *Auth) (err error) {
 
 	hostport := fmt.Sprintf("%s:%d", auth.host, auth.port)
 
-	conn, err := ssh.Dial("tcp", hostport, config)
+	var conn *ssh.Client
+
+	if *forward != "" {
+		if !strings.Contains(*forward, "://") {
+			*forward = "socks://" + *forward
+		}
+		p, err := url.Parse(*forward)
+		if err != nil {
+			return fmt.Errorf("bad proxy: %v", err)
+		}
+		conn, err = DialProxy(hostport, config, p)
+		idleTimeout = 1 * time.Minute
+	} else {
+		conn, err = Dial(hostport, config)
+	}
+
 	if err != nil {
 		return fmt.Errorf("cannot connect %v: %v", hostport, err)
 	}
@@ -224,7 +242,7 @@ func run(ctx context.Context, auth *Auth) (err error) {
 
 	session.Stderr = os.Stderr
 	session.Stdout = newReplaceWriter(*user)
-	session.Stdin = newAntiIdleReader(10 * time.Minute)
+	session.Stdin = newAntiIdleReader(idleTimeout)
 
 	go func() {
 		sig := make(chan os.Signal, 1)
