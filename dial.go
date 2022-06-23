@@ -13,12 +13,17 @@ func Dial(hostport string, config *ssh.ClientConfig) (*ssh.Client, error) {
 	return ssh.Dial("tcp", hostport, config)
 }
 
-func DialProxy(hostport string, config *ssh.ClientConfig, p *url.URL) (*ssh.Client, error) {
+func DialProxy(hostport string, config *ssh.ClientConfig, pURL string) (*ssh.Client, error) {
 	var (
 		dialer proxy.Dialer
 		err    error
 		auth   *proxy.Auth
 	)
+
+	p, err := url.Parse(pURL)
+	if err != nil {
+		return nil, fmt.Errorf("bad proxy: %v", err)
+	}
 
 	if p.User != nil {
 		auth = new(proxy.Auth)
@@ -28,24 +33,12 @@ func DialProxy(hostport string, config *ssh.ClientConfig, p *url.URL) (*ssh.Clie
 		}
 	}
 
-	switch p.Scheme {
-	case "socks5", "socks", "socks5h":
-		dialer, err = proxy.SOCKS5(
-			"tcp",
-			p.Host,
-			auth,
-			&net.Dialer{
-				Timeout: config.Timeout,
-			})
-
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("unsupported proxy scheme: %s", p.Scheme)
-
+	dialer, err = proxy.FromURL(p, &net.Dialer{
+		Timeout: config.Timeout,
+	})
+	if err != nil {
+		return nil, err
 	}
-
 	conn, err := dialer.Dial("tcp", hostport)
 	if err != nil {
 		return nil, err

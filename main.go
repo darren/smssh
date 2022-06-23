@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	_ "net/http/pprof"
-	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -26,7 +25,7 @@ var (
 	logfile   = flag.String("d", "", "enable debug and output logs to file")
 	cloak     = flag.String("c", "", "cloak mode hide smth id")
 	port      = flag.Int("p", 22, "port")
-	forward   = flag.String("x", "", "proxy to use: socks5://127.0.0.1:1080")
+	forward   = flag.String("x", "", "proxy to use: socks5://127.0.0.1:1080, http://127.0.0.1:8080")
 	reconnect = flag.Bool("r", false, "auto reconnect after close")
 )
 
@@ -186,13 +185,9 @@ func run(ctx context.Context, auth *Auth) (err error) {
 
 	if *forward != "" {
 		if !strings.Contains(*forward, "://") {
-			*forward = "socks://" + *forward
+			*forward = "socks5://" + *forward
 		}
-		p, err := url.Parse(*forward)
-		if err != nil {
-			return fmt.Errorf("bad proxy: %v", err)
-		}
-		conn, err = DialProxy(hostport, config, p)
+		conn, err = DialProxy(hostport, config, *forward)
 		idleTimeout = 1 * time.Minute
 	} else {
 		conn, err = Dial(hostport, config)
