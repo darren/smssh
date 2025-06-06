@@ -57,6 +57,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return
 	}
+	defer term.Restore(fd, termState)
 
 	auth, err := getAuth()
 	if err != nil {
@@ -93,10 +94,6 @@ func main() {
 	case <-sig:
 		cancel()
 	case <-ctx.Done():
-	}
-
-	if err == nil {
-		term.Restore(fd, termState)
 	}
 
 	if retries > 0 {
