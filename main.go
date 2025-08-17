@@ -213,6 +213,14 @@ func run(ctx context.Context, auth *Auth) (err error) {
 	}
 	defer term.Restore(fd, state)
 
+	// Enter alternate screen buffer to capture special keys like PageUp/PageDown.
+	// See https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-The-Alternate-Screen-Buffer
+	fmt.Fprint(os.Stdout, "\x1b[?1049h")
+	// Clear the screen.
+	fmt.Fprint(os.Stdout, "\x1b[2J")
+	// Restore screen buffer on exit.
+	defer fmt.Fprint(os.Stdout, "\x1b[?1049l")
+
 	w, h, err := term.GetSize(fd)
 	if err != nil {
 		return fmt.Errorf("terminal get size: %s", err)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"log"
 	"os"
@@ -18,6 +19,17 @@ type idleReader struct {
 	err     error
 }
 
+// macOS Terminal.app sends VT100/VT220 escape sequences in application
+// cursor mode, but many modern servers expect xterm sequences.
+// We translate them here to provide a more consistent experience
+// without requiring users to change terminal settings.
+// End key:  \x1b[F -> \x1b[4~
+// Home key: \x1b[H -> \x1b[1~
+var specialKeyMap = map[string]string{
+	"\x1b[F": "\x1b[4~", // End key
+	"\x1b[H": "\x1b[1~", // Home key
+}
+
 func (ir *idleReader) read() {
 	for {
 		// 64的这个数值很小，后面的Read被调用是buf的大小应该不会小于64?
@@ -28,7 +40,12 @@ func (ir *idleReader) read() {
 			ir.err = err
 			break
 		}
-		ir.buf <- buf[:n]
+
+		data := buf[:n]
+		for k, v := range specialKeyMap {
+			data = bytes.Replace(data, []byte(k), []byte(v), -1)
+		}
+		ir.buf <- data
 	}
 }
 
